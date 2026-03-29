@@ -2,8 +2,12 @@
 
 :root {
   --background: #ffffff;
-  --foreground: #171717;
+  --foreground: #0f172a;
 }
+
+/* globals.css — add after your Tailwind directives */
+.font-display { font-family: var(--font-sora), sans-serif; }
+.font-body    { font-family: var(--font-jakarta), sans-serif; }
 
 @theme inline {
   --color-background: var(--background);
@@ -12,31 +16,43 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-
+/* Custom scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 ::-webkit-scrollbar-track {
   background: transparent; 
 }
 ::-webkit-scrollbar-thumb {
   background: #cbd5e1; 
-  border-radius: 4px;
+  border-radius: 100px;
 }
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8; 
+}
+
+/* Selection */
+::selection {
+  background: rgba(249, 115, 22, 0.15);
+  color: #0f172a;
+}
+
+/* Focus ring consistency */
+*:focus-visible {
+  outline: 2px solid rgba(249, 115, 22, 0.4);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
+/* Smooth transitions globally */
+* {
+  scroll-behavior: smooth;
 }

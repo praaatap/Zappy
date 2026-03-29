@@ -1,63 +1,63 @@
 import { NextResponse } from "next/server";
-import { db } from "@/db";
-import { zapRuns, zaps } from "@/db/schema";
-import { v4 as uuidv4 } from "uuid";
-import { eq } from "drizzle-orm";
+import { executeWorkflow } from "@/lib/workflow/engine";
 
-// 1. UPDATE THE TYPE DEFINITION TO: Promise<{ zapId: string }>
+/**
+ * POST /api/hooks/catch/[zapId]
+ * Webhook endpoint to trigger a Zap execution
+ */
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ zapId: string }> }
 ) {
-  const body = await req.json();
-
-  // 2. AWAIT THE PARAMS HERE
-  const { zapId } = await params;
-
-  // 1. Store the Run (Audit Log)
-  await db.insert(zapRuns).values({
-    id: uuidv4(),
-    zapId: zapId,
-    metadata: body,
-    status: 0 // Started
-  });
-
-  // 2. Fetch the Zap Logic to execute
-  const zap = await db.query.zaps.findFirst({
-    where: eq(zaps.id, zapId),
-    with: {
-      actions: true
-    }
-  });
-
-  if (!zap) {
-    return NextResponse.json({ message: "Zap not found" }, { status: 404 });
-  }
-
-  // 3. EXECUTE THE LOGIC IMMEDIATELY
-  console.log(`⚡ Processing Zap ${zapId}...`);
-
   try {
-    for (const action of zap.actions) {
-      // Simulate Email Sending
-      if (action.actionId === "email") {
-        console.log(`📧 Sending Email...`);
-        // @ts-ignore
-        console.log(`   To: ${action.metadata?.to}`);
-        // @ts-ignore
-        console.log(`   Subject: ${action.metadata?.subject}`);
-        console.log(`   Body: Data received ${JSON.stringify(body)}`);
-      }
-
-      // Artificial delay to feel like "work" is happening
-      await new Promise(r => setTimeout(r, 1000));
+    const { zapId } = await params;
+    
+    // Parse request body as trigger data
+    let triggerData = {};
+    try {
+      triggerData = await req.json();
+    } catch (e) {
+      // If no JSON body, we'll just use an empty object
+      console.warn("Webhook received with no JSON body");
     }
 
-    console.log("✅ Zap Finished Successfully");
-    return NextResponse.json({ status: "success" });
+    // Execute the workflow
+    console.log(`⚡ Webhook received for Zap ${zapId}. Triggering execution...`);
+    
+    const result = await executeWorkflow(zapId, triggerData);
 
-  } catch (e) {
-    console.log("❌ Zap Failed");
-    return NextResponse.json({ status: "error" }, { status: 500 });
+    if (result.success) {
+      return NextResponse.json({
+        message: "Zap executed successfully",
+        executionId: result.executionId,
+      });
+    } else {
+      return NextResponse.json({
+        message: "Zap execution failed",
+        executionId: result.executionId,
+      }, { status: 500 });
+    }
+  } catch (error: any) {
+    console.error("Error in webhook catch:", error);
+    return NextResponse.json({ 
+      message: "Internal Server Error",
+      error: error.message 
+    }, { status: 500 });
   }
+}
+
+/**
+ * GET /api/hooks/catch/[zapId]
+ * Just to confirm the endpoint is working
+ */
+export async function GET(
+  req: Request,
+  { params }: { params: Promise<{ zapId: string }> }
+) {
+    const { zapId } = await params;
+    return NextResponse.json({ 
+        message: "Webhook endpoint is active",
+        zapId,
+        url: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/hooks/catch/${zapId}`
+    });
 }

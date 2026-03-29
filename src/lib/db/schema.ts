@@ -39,7 +39,7 @@ export const zapRuns = pgTable("zap_runs", {
   id: text("id").primaryKey(),
   zapId: text("zap_id").references(() => zaps.id).notNull(),
   metadata: jsonb("metadata").default({}),
-  status: text("status").notNull().default("success"), // "success" | "failed"
+  status: text("status").notNull().default("success"), // "success" | "failed" | "running" | "pending_approval"
   startedAt: timestamp("started_at").defaultNow(),
   completedAt: timestamp("completed_at"),
 });
