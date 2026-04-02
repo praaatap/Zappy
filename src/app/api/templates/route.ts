@@ -1,8 +1,6 @@
 // Templates API - Get workflow templates
 
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/mongodb';
-import { Template } from '@/lib/models';
 import { workflowTemplates, templateCategories } from '@/lib/templates';
 
 /**
@@ -11,7 +9,6 @@ import { workflowTemplates, templateCategories } from '@/lib/templates';
  */
 export async function GET(request: NextRequest) {
   try {
-    await connectDB();
 
     const { search, category } = Object.fromEntries(request.nextUrl.searchParams);
 

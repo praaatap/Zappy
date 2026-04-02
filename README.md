@@ -1,153 +1,190 @@
 # ⚡ Zappy
 
 **The open-source automation platform for the modern web.**
-*A high-performance, event-driven alternative to Zapier built with the Next.js App Router.*
-
-![Zappy Preview](public/preview.png)
-*(Note: Add a screenshot of your visual builder here!)*
+*A high-performance alternative to Zapier built with Next.js and MongoDB.*
 
 ---
 
-## ScreenShot 
- <img width="2537" height="1396" alt="image" src="https://github.com/user-attachments/assets/243f6c21-0719-4bf6-bbea-ed56d037583d" />
+## 🚀 Quick Deploy (5 Minutes)
+
+```bash
+# Clone repository
+git clone https://github.com/yourusername/zappy.git
+cd zappy
+
+# Start with Docker
+docker-compose up -d
+
+# Access at http://localhost:3000
+```
+
+**That's it!** See [DEPLOY_GUIDE.md](DEPLOY_GUIDE.md) for detailed instructions.
+
+---
+
+## Screenshots
+
+<img width="2537" height="1396" alt="image" src="https://github.com/user-attachments/assets/243f6c21-0719-4bf6-bbea-ed56d037583d" />
 <img width="2556" height="1361" alt="image" src="https://github.com/user-attachments/assets/037b09e8-3357-4ed8-ae5f-a9dad676cb5f" />
 <img width="2441" height="1335" alt="image" src="https://github.com/user-attachments/assets/5c20ff45-a65f-4d7f-a937-7d2a4f3e322c" />
-<img width="2523" height="1342" alt="image" src="https://github.com/user-attachments/assets/59128f8e-eea7-4cc1-b7de-8e1539bbc367" />
-<img width="2535" height="1352" alt="image" src="https://github.com/user-attachments/assets/9faa82d1-4aa8-41be-a4f9-987b83cdbb01" />
-<img width="2556" height="1358" alt="image" src="https://github.com/user-attachments/assets/f54a1174-dec0-43fd-8d6a-1bcaa35c846b" />
-<img width="2558" height="1354" alt="image" src="https://github.com/user-attachments/assets/6244bf43-9805-46fe-9cd4-534e221c3682" />
 
+---
 
-## 👋 About The Project
+## ✨ Features
 
-I built **Zappy** to demystify how automation platforms actually work under the hood. While tools like Zapier seem magical, they are essentially elegant event listeners and task queues.
-
-This project is a full-stack implementation of that logic. It features a drag-and-drop visual builder, a real-time webhook ingestion engine, and a database-first architecture that ensures data integrity even during high loads.
-
-### ✨ Key Features
-
-* **🎨 Visual Workflow Builder:** A clean, linear editor to connect Triggers (like Webhooks) to Actions (like Email).
-* **🔌 Real-time Webhooks:** instantly triggers workflows via unique API endpoints.
-* **🛡️ Secure Authentication:** Full JWT-based auth system with Bcrypt password hashing.
-* **📊 Dashboard & History:** Track active Zaps, toggle statuses, and monitor execution logs.
-* **⚡ High Performance:** Built on Next.js 14 Server Actions & API Routes for edge-ready speed.
-* **🗄️ Type-Safe Database:** Leverages Drizzle ORM with PostgreSQL (Neon DB) for robust data handling.
+* **🎨 Visual Workflow Builder** - Drag-and-drop editor to create automations
+* **🔌 Real-time Webhooks** - Instant triggers via unique API endpoints
+* **🛡️ Secure Authentication** - JWT-based auth with bcrypt password hashing
+* **📊 Dashboard & History** - Track active Zaps and monitor execution logs
+* **⚡ High Performance** - Microservices architecture with Redis queues
+* **🗄️ MongoDB Database** - Robust, scalable data storage
 
 ---
 
 ## 🛠️ Tech Stack
 
 **Frontend:**
-* **Framework:** [Next.js 14](https://nextjs.org/) (App Router)
-* **Language:** [TypeScript](https://www.typescriptlang.org/)
-* **Styling:** [Tailwind CSS](https://tailwindcss.com/)
-* **UI Components:** Lucide React (Icons), Sonner (Toasts)
+- **Framework:** Next.js 16 (App Router)
+- **Language:** TypeScript
+- **Styling:** Tailwind CSS
+- **UI:** Lucide React Icons, Sonner Toasts
 
-**Backend & Database:**
-* **API:** Next.js API Routes (`/app/api`)
-* **Database:** PostgreSQL (via [Neon.tech](https://neon.tech/))
-* **ORM:** [Drizzle ORM](https://orm.drizzle.team/)
-* **Auth:** JWT & Bcrypt.js
+**Backend:**
+- **Runtime:** Node.js + Express.js
+- **Database:** MongoDB with Mongoose
+- **Queue:** Redis + BullMQ
+- **Auth:** JWT + Bcrypt
 
----
-
-## 🚀 Getting Started
-
-Follow these steps to get a local copy up and running in minutes.
-
-### Prerequisites
-* Node.js (v18 or higher)
-* npm or bun
-* A PostgreSQL Database URL (I recommend [Neon.tech](https://neon.tech/) for a free, instant cloud DB).
-
-### Installation
-
-1.  **Clone the repository**
-    ```bash
-    git clone [https://github.com/yourusername/zappy.git](https://github.com/yourusername/zappy.git)
-    cd zappy
-    ```
-
-2.  **Install dependencies**
-    ```bash
-    npm install
-    ```
-
-3.  **Set up Environment Variables**
-    Create a `.env` file in the root directory and add your database connection string:
-    ```bash
-    # .env
-    DATABASE_URL="postgresql://user:password@host:port/database?sslmode=require"
-    ```
-
-4.  **Push the Database Schema**
-    Use Drizzle Kit to create the tables in your database automatically:
-    ```bash
-    npm run db:push
-    ```
-
-5.  **Run the Development Server**
-    ```bash
-    npm run dev
-    ```
-
-6.  Open [http://localhost:3000](http://localhost:3000) in your browser.
+**Infrastructure:**
+- **Deployment:** Docker + Docker Compose
+- **Monitoring:** Prometheus + Grafana
 
 ---
 
-## 🏗️ Architecture Overview
+## 📦 Quick Start
 
-The application follows a **Monorepo** structure using Next.js, meaning the frontend and backend logic live together but handle distinct responsibilities.
+### With Docker (Recommended)
 
-1.  **The Builder:** Users configure a Zap via the UI. This saves a relational map of `Trigger -> Action` in Postgres.
-2.  **The Ingestor:** External services hit a specific endpoint: `POST /api/hooks/catch/[zapId]`.
-3.  **The Processor:** Instead of a heavy background worker, the API route validates the payload, logs the event to the `ZapRuns` audit table, and immediately executes the business logic (e.g., sending an email).
+```bash
+# Start all services
+docker-compose up -d
 
----
+# View logs
+docker-compose logs -f
 
-## 🧪 How to Test
+# Stop services
+docker-compose down
+```
 
-1.  **Create an Account:** Sign up at `/signup`.
-2.  **Build a Zap:**
-    * Navigate to **Create Zap**.
-    * Select **Webhook** as the trigger.
-    * Select **Email** as the action.
-    * Click **Publish**.
-3.  **Trigger it:**
-    Copy the `zapId` from your URL or database and use Postman/Curl to send data:
-    ```bash
-    curl -X POST http://localhost:3000/api/hooks/catch/YOUR_ZAP_ID \
-    -H "Content-Type: application/json" \
-    -d '{"message": "Hello Zappy!"}'
-    ```
-4.  **Verify:** Check your terminal logs to see the "Email Sent" simulation and check the **History** tab in the dashboard to see the success log.
+### Local Development
 
----
+```bash
+# Install dependencies
+npm install
+cd backend && npm install && cd ..
 
-## 🛣️ Future Roadmap
+# Start MongoDB and Redis
+docker-compose up -d mongodb redis
 
-* [ ] **Queue System:** Move execution logic out of the API route into a dedicated Redis/Kafka consumer for massive scale.
-* [ ] **OAuth Integrations:** Add "Login with Google/Slack" to enable real API calls.
-* [ ] **Conditional Logic:** Add "If/Else" paths in the workflow builder.
+# Start development server
+npm run dev
+```
 
----
-
-## 🤝 Contributing
-
-Contributions are what make the open-source community such an amazing place to learn. Any contributions you make are **greatly appreciated**.
-
-1.  Fork the Project
-2.  Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
-3.  Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
-4.  Push to the Branch (`git push origin feature/AmazingFeature`)
-5.  Open a Pull Request
+Access:
+- **Frontend:** http://localhost:3000
+- **Backend API:** http://localhost:5000
+- **Webhook Service:** http://localhost:5001
 
 ---
 
-## 📜 License
+## 🧪 Testing
 
-Distributed under the MIT License. See `LICENSE` for more information.
+1. **Create Account** - Sign up at http://localhost:3000
+
+2. **Build a Zap:**
+   - Navigate to **Create Zap**
+   - Select **Webhook** as trigger
+   - Add an action (Email, Slack, etc.)
+   - Click **Publish**
+
+3. **Trigger Webhook:**
+```bash
+curl -X POST http://localhost:5000/api/v1/webhooks/trigger/YOUR_ZAP_ID \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Hello Zappy!"}'
+```
+
+4. **Verify** - Check the Dashboard for execution logs!
 
 ---
 
-**Built with ❤️ by [Your Name]**
+## 📚 Documentation
+
+- **[Deployment Guide](DEPLOY_GUIDE.md)** - Complete deployment instructions
+- **[Quick Start](QUICKSTART.md)** - 5-minute setup guide
+- **[Architecture](IMPLEMENTATION_SUMMARY.md)** - System overview
+
+---
+
+## 🔧 Available Commands
+
+```bash
+# Development
+npm run dev              # Start all services
+npm run build            # Build frontend
+npm run build:all        # Build everything
+
+# Docker
+npm run docker:up        # Start containers
+npm run docker:down      # Stop containers
+npm run docker:logs      # View logs
+
+# Database
+npm run db:push          # Push schema (if using Drizzle)
+npm run db:seed          # Seed sample data
+```
+
+---
+
+## 🏗️ Architecture
+
+```
+┌─────────────┐
+│  Frontend   │  Port 3000 (Next.js)
+└──────┬──────┘
+       │
+       ▼
+┌─────────────┐      ┌──────────────┐
+│Backend API  │◄────►│  Redis       │
+│Port 5000    │      │  (BullMQ)    │
+└──────┬──────┘      └──────────────┘
+       │
+       ▼
+┌──────────────┐
+│  MongoDB     │
+│  Port 27017  │
+└──────────────┘
+```
+
+---
+
+## 🛡️ Security Checklist
+
+- [ ] Change default JWT_SECRET in production
+- [ ] Use strong MongoDB password
+- [ ] Enable HTTPS in production
+- [ ] Configure CORS properly
+- [ ] Enable rate limiting
+- [ ] Regular backups
+
+---
+
+## 📝 License
+
+MIT License - See LICENSE file
+
+---
+
+**Built with ❤️ for the automation community**
+
+**Happy Automating! ⚡**

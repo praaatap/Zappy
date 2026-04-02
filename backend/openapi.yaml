@@ -1,0 +1,213 @@
+openapi: 3.0.3
+info:
+  title: Zappy API
+  version: 1.0.0
+  description: Core Zap/workflow API with webhooks, executions, templates, integrations, and auth.
+servers:
+  - url: http://localhost:5000/api/v1
+paths:
+  /auth/signup:
+    post:
+      summary: Create a user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, email, password]
+              properties:
+                name: { type: string }
+                email: { type: string, format: email }
+                password: { type: string, format: password }
+      responses:
+        '201': { description: User created }
+  /auth/login:
+    post:
+      summary: Login user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, format: password }
+      responses:
+        '200': { description: Login success, returns JWT }
+  /auth/me:
+    get:
+      summary: Get current user profile
+      parameters:
+        - in: header
+          name: x-user-id
+          schema: { type: string }
+      responses:
+        '200': { description: Current user }
+  /workflows:
+    get:
+      summary: List workflows for the authenticated user
+      responses:
+        '200': { description: List of workflows }
+    post:
+      summary: Create workflow
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                description: { type: string }
+                trigger: { type: object }
+                actions: { type: array, items: { type: object } }
+      responses:
+        '201': { description: Workflow created }
+  /workflows/{id}:
+    get:
+      summary: Get workflow by id
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: Workflow }
+    put:
+      summary: Update workflow
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: Workflow updated }
+  /zap:
+    get:
+      summary: List zaps (alias of workflows)
+      responses:
+        '200': { description: List of zaps }
+    post:
+      summary: Create zap
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                triggerId: { type: string }
+                actions: { type: array, items: { type: object } }
+      responses:
+        '201': { description: Zap created }
+  /zap/{id}:
+    get:
+      summary: Get zap by id
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: Zap }
+  /webhooks/trigger/{workflowId}:
+    post:
+      summary: Trigger workflow by webhook
+      parameters:
+        - in: path
+          name: workflowId
+          required: true
+          schema: { type: string }
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        '200': { description: Enqueued execution }
+  /executions/{workflowId}:
+    get:
+      summary: List executions for a workflow
+      parameters:
+        - in: path
+          name: workflowId
+          required: true
+          schema: { type: string }
+        - in: query
+          name: limit
+          schema: { type: integer }
+      responses:
+        '200': { description: Execution list }
+  /stats:
+    get:
+      summary: Get dashboard stats
+      responses:
+        '200': { description: Stats payload }
+  /templates:
+    get:
+      summary: List workflow templates
+      responses:
+        '200': { description: Templates }
+    post:
+      summary: Create template
+      responses:
+        '201': { description: Template created }
+  /templates/{id}:
+    get:
+      summary: Get template
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: Template }
+  /templates/{id}/use:
+    post:
+      summary: Create workflow from template
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        '201': { description: Workflow created from template }
+  /integrations:
+    get:
+      summary: List user integrations
+      responses:
+        '200': { description: Integrations list }
+  /integrations/slack/connect:
+    post:
+      summary: Connect Slack integration
+      responses:
+        '200': { description: Slack connected }
+  /integrations/github/connect:
+    post:
+      summary: Connect GitHub integration
+      responses:
+        '200': { description: GitHub connected }
+  /integrations/{type}:
+    delete:
+      summary: Disconnect integration by type
+      parameters:
+        - in: path
+          name: type
+          required: true
+          schema: { type: string, enum: [slack, github, email, webhook] }
+      responses:
+        '200': { description: Integration removed }
+  /metrics:
+    get:
+      summary: Prometheus metrics
+      responses:
+        '200': { description: Metrics text format }
+  /health:
+    get:
+      summary: Health check
+      responses:
+        '200': { description: Service alive }
+components: {}

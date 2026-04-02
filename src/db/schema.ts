@@ -2,10 +2,10 @@ import { pgTable, serial, text, integer, jsonb, timestamp } from "drizzle-orm/pg
 import { relations } from "drizzle-orm";
 
 export const users = pgTable("users", {
-  id: serial("id").primaryKey(),
-  name: text("name").notNull(),
+  id: text("id").primaryKey(), // Clerk User ID
+  name: text("name"),
   email: text("email").notNull().unique(),
-  password: text("password").notNull(),
+  imageUrl: text("image_url"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -14,7 +14,7 @@ export const zaps = pgTable("zaps", {
   name: text("name").notNull().default("Untitled Zap"),
   description: text("description").default(""),
   status: text("status").notNull().default("paused"), // "active" | "paused"
-  userId: integer("user_id").references(() => users.id).notNull(),
+  userId: text("user_id").references(() => users.id).notNull(),
   triggerId: text("trigger_id"), // Reference to a trigger
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),

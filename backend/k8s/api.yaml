@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: zappy-api
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: zappy-api
+  template:
+    metadata:
+      labels:
+        app: zappy-api
+    spec:
+      containers:
+      - name: api
+        image: your-docker-registry/zappy-api:latest
+        ports:
+        - containerPort: 5000
+        env:
+        - name: REDIS_HOST
+          value: "zappy-redis"
+        - name: MONGO_URI
+          value: "mongodb://zappy-mongo:27017/zappy"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: zappy-api-service
+spec:
+  type: LoadBalancer
+  selector:
+    app: zappy-api
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 5000

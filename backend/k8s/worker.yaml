@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: zappy-worker
+spec:
+  replicas: 10 # Massive worker pool
+  selector:
+    matchLabels:
+      app: zappy-worker
+  template:
+    metadata:
+      labels:
+        app: zappy-worker
+    spec:
+      containers:
+      - name: worker
+        image: your-docker-registry/zappy-worker:latest
+        env:
+        - name: REDIS_HOST
+          value: "zappy-redis"
+        - name: MONGO_URI
+          value: "mongodb://zappy-mongo:27017/zappy"

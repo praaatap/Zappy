@@ -1,180 +1,71 @@
-// Single Workflow API - Get, update, delete specific workflow
+import { NextResponse, NextRequest } from "next/server";
+import { db } from "@/db";
+import { zaps, triggers, actions } from "@/db/schema";
+import { eq, and } from "drizzle-orm";
+import { auth } from "@clerk/nextjs/server";
 
-import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/mongodb';
-import { Workflow, User } from '@/lib/models';
-import jwt from 'jsonwebtoken';
+import { syncUser } from "@/lib/authSync";
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+// GET /api/workflows/[id]
+export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+    try {
+        const userId = await syncUser();
+        if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-// Helper to get user from token
-async function getCurrentUser(request: NextRequest) {
-  const authHeader = request.headers.get('authorization');
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return null;
-  }
+        const zap = await db.query.zaps.findFirst({
+            where: and(eq(zaps.id, params.id), eq(zaps.userId, userId)),
+            with: {
+                trigger: true,
+                actions: true,
+            },
+        });
 
-  const token = authHeader.substring(7);
-  try {
-    const decoded: any = jwt.verify(token, JWT_SECRET);
-    return decoded;
-  } catch {
-    return null;
-  }
+        if (!zap) return NextResponse.json({ error: "Zap not found" }, { status: 404 });
+        
+        return NextResponse.json({ workflow: zap, zap });
+    } catch (e: any) {
+        return NextResponse.json({ error: e.message }, { status: 500 });
+    }
 }
 
-/**
- * GET /api/workflows/[id]
- * Get a specific workflow
- */
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    await connectDB();
-    const { id } = await params;
+// PUT /api/workflows/[id]
+export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
+    try {
+        const userId = await syncUser();
+        if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const user = await getCurrentUser(request);
-    if (!user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
+        const body = await req.json();
+
+        const [existingZap] = await db.select().from(zaps).where(and(eq(zaps.id, params.id), eq(zaps.userId, userId))).limit(1);
+        if (!existingZap) return NextResponse.json({ error: "Zap not found" }, { status: 404 });
+
+        await db.update(zaps)
+            .set({ ...body, updatedAt: new Date() })
+            .where(eq(zaps.id, params.id));
+            
+        return NextResponse.json({ message: "Zap updated successfully" });
+    } catch (e: any) {
+        return NextResponse.json({ error: e.message }, { status: 500 });
     }
-
-    const workflow = await Workflow.findOne({ _id: id, userId: user.userId });
-    if (!workflow) {
-      return NextResponse.json(
-        { error: 'Workflow not found' },
-        { status: 404 }
-      );
-    }
-
-    return NextResponse.json({ workflow });
-  } catch (error: any) {
-    console.error('Get workflow error:', error);
-    return NextResponse.json(
-      { error: error.message || 'Internal server error' },
-      { status: 500 }
-    );
-  }
 }
 
-/**
- * PUT /api/workflows/[id]
- * Update a workflow
- */
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    await connectDB();
-    const { id } = await params;
+// DELETE /api/workflows/[id]
+export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+    try {
+        const userId = await syncUser();
+        if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const user = await getCurrentUser(request);
-    if (!user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
+        const [existingZap] = await db.select().from(zaps).where(and(eq(zaps.id, params.id), eq(zaps.userId, userId))).limit(1);
+        if (!existingZap) return NextResponse.json({ error: "Zap not found" }, { status: 404 });
+
+        await db.transaction(async (tx) => {
+            await tx.delete(actions).where(eq(actions.zapId, params.id));
+            await tx.delete(triggers).where(eq(triggers.zapId, params.id));
+            await tx.delete(zaps).where(eq(zaps.id, params.id));
+        });
+
+        return NextResponse.json({ message: "Zap deleted successfully" });
+    } catch (e: any) {
+        return NextResponse.json({ error: e.message }, { status: 500 });
     }
-
-    const { name, description, trigger, actions, status } = await request.json();
-
-    const workflow = await Workflow.findOne({ _id: id, userId: user.userId });
-    if (!workflow) {
-      return NextResponse.json(
-        { error: 'Workflow not found' },
-        { status: 404 }
-      );
-    }
-
-    // Update fields
-    if (name) workflow.name = name;
-    if (description !== undefined) workflow.description = description;
-    if (trigger) {
-      workflow.trigger = {
-        type: trigger.type,
-        config: trigger.config || {},
-        webhookUrl:
-          trigger.type === 'webhook'
-            ? `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/trigger/${id}`
-            : workflow.trigger.webhookUrl,
-      };
-    }
-    if (actions) {
-      workflow.actions = actions.map((action: any, index: number) => ({
-        id: action.id || `action-${index}`,
-        type: action.type,
-        config: action.config || {},
-        order: index,
-      }));
-    }
-    if (status) {
-      workflow.status = status;
-    }
-
-    await workflow.save();
-
-    return NextResponse.json({
-      message: 'Workflow updated successfully',
-      workflow,
-    });
-  } catch (error: any) {
-    console.error('Update workflow error:', error);
-    return NextResponse.json(
-      { error: error.message || 'Internal server error' },
-      { status: 500 }
-    );
-  }
-}
-
-/**
- * DELETE /api/workflows/[id]
- * Delete a workflow
- */
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    await connectDB();
-    const { id } = await params;
-
-    const user = await getCurrentUser(request);
-    if (!user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
-
-    const workflow = await Workflow.findOneAndDelete({
-      _id: id,
-      userId: user.userId,
-    });
-    if (!workflow) {
-      return NextResponse.json(
-        { error: 'Workflow not found' },
-        { status: 404 }
-      );
-    }
-
-    // Update user's workflow count
-    await User.findByIdAndUpdate(user.userId, {
-      $inc: { workflowsCount: -1 },
-    });
-
-    return NextResponse.json({
-      message: 'Workflow deleted successfully',
-    });
-  } catch (error: any) {
-    console.error('Delete workflow error:', error);
-    return NextResponse.json(
-      { error: error.message || 'Internal server error' },
-      { status: 500 }
-    );
-  }
 }

@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: zappy-webhook
+spec:
+  replicas: 5 # High scale for ingestion
+  selector:
+    matchLabels:
+      app: zappy-webhook
+  template:
+    metadata:
+      labels:
+        app: zappy-webhook
+    spec:
+      containers:
+      - name: webhook
+        image: your-docker-registry/zappy-webhook:latest
+        ports:
+        - containerPort: 5001
+        env:
+        - name: REDIS_HOST
+          value: "zappy-redis"
+        - name: MONGO_URI
+          value: "mongodb://zappy-mongo:27017/zappy"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: zappy-webhook-service
+spec:
+  type: LoadBalancer
+  selector:
+    app: zappy-webhook
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 5001

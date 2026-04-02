@@ -4,5 +4,6 @@
       "Bash(npm install *)",
       "Bash(npm uninstall *)"
     ]
-  }
+  },
+  "$version": 3
 }

@@ -1,84 +1,66 @@
-import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
-import { zaps, zapRuns } from "@/lib/db/schema";
-import jwt from "jsonwebtoken";
-import { eq, sql, count, desc, and } from "drizzle-orm";
+import { NextResponse, NextRequest } from "next/server";
+import { db } from "@/db";
+import { zaps, zapRuns } from "@/db/schema";
+import { eq, and, desc, count, sql } from "drizzle-orm";
+import { auth } from "@clerk/nextjs/server";
 
-const SECRET = process.env.JWT_SECRET || "zappy-secret-change-in-production";
+import { syncUser } from "@/lib/authSync";
 
-function getUserId(req: Request): number | null {
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) return null;
-    const token = authHeader.startsWith('Bearer ') ? authHeader.substring(7) : authHeader;
+// GET /api/v1/stats
+export async function GET(req: NextRequest) {
     try {
-        const decoded = jwt.verify(token, SECRET) as { id: number };
-        return decoded.id;
-    } catch (e) {
-        return null;
-    }
-}
+        const userId = await syncUser();
+        if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-export async function GET(req: Request) {
-    try {
-        const userId = getUserId(req);
-        if (!userId) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+        // Get total zaps, active zaps
+        const [totalZapsResult] = await db.select({ value: count() }).from(zaps).where(eq(zaps.userId, userId));
+        const [activeZapsResult] = await db.select({ value: count() }).from(zaps).where(and(eq(zaps.userId, userId), eq(zaps.status, 'active')));
+        
+        // Drizzle nested select isn't supported inside where in the exact same way for eq(coll, SubQuery),
+        // we'll fetch the user's zap IDs first to simplify OR we can query zapRuns and join.
+        // Let's do a fast join or find the zapIds first for serverless efficiency:
+        
+        const userZapsResult = await db.select({ id: zaps.id }).from(zaps).where(eq(zaps.userId, userId));
+        const userZapIds = userZapsResult.map(z => z.id);
 
-        // Get total active zaps
-        const [activeZapsCount] = await db
-            .select({ count: count() })
-            .from(zaps)
-            .where(and(eq(zaps.userId, userId), eq(zaps.status, "active")));
+        let recentExecutions: any[] = [];
+        let last100: any[] = [];
 
-        // Get total runs
-        const [totalRunsCount] = await db
-            .select({ count: count() })
-            .from(zapRuns)
-            .innerJoin(zaps, eq(zapRuns.zapId, zaps.id))
-            .where(eq(zaps.userId, userId));
+        if (userZapIds.length > 0) {
+            // Wait, drizzle doesn't natively have query.zapRuns.findMany with an array `inArray` if we're not using standard schema syntax? 
+            // We can use standard select for this:
+            
+            // Get recent executions using the standard sql connection if we want simple sorting,
+            // or we use drizzle query:
+            recentExecutions = await db.query.zapRuns.findMany({
+                where: (runs, { inArray }) => inArray(runs.zapId, userZapIds),
+                orderBy: [desc(zapRuns.startedAt)],
+                limit: 5,
+                with: { zap: true },
+            });
 
-        // Get success rate (mocking some logic but based on real data)
-        const [failedRunsCount] = await db
-            .select({ count: count() })
-            .from(zapRuns)
-            .innerJoin(zaps, eq(zapRuns.zapId, zaps.id))
-            .where(and(eq(zaps.userId, userId), eq(zapRuns.status, "failed")));
+            last100 = await db.query.zapRuns.findMany({
+                where: (runs, { inArray }) => inArray(runs.zapId, userZapIds),
+                orderBy: [desc(zapRuns.startedAt)],
+                limit: 100,
+            });
+        }
 
-        const totalCount = Number(totalRunsCount.count);
-        const failedCount = Number(failedRunsCount.count);
-        const successRate = totalCount > 0 
-            ? ((totalCount - failedCount) / totalCount * 100).toFixed(1)
-            : "100.0";
-
-        // Get recent activity
-        const activity = await db.query.zapRuns.findMany({
-            with: {
-                zap: true
-            },
-            orderBy: [desc(zapRuns.startedAt)],
-            limit: 10,
-        });
-
-        // Filter activity for the user
-        const userActivity = activity
-          .filter(run => run.zap.userId === userId)
-          .map(run => ({
-            title: `Zap triggered: ${run.zap.name}`,
-            zap: run.zap.name,
-            time: run.startedAt,
-            status: run.status
-          }));
+        const successful = last100.filter((log: any) => log.status === 'success').length;
+        const successRate = last100.length > 0 ? (successful / last100.length) * 100 : 100;
 
         return NextResponse.json({
             stats: {
-                activeZaps: activeZapsCount.count,
-                totalRuns: totalRunsCount.count,
-                successRate: `${successRate}%`,
-                taskUsage: "Normal"
+                totalWorkflows: totalZapsResult.value,
+                activeWorkflows: activeZapsResult.value,
+                successRate: Math.round(successRate),
+                totalExecutions: last100.length,
             },
-            activity: userActivity
+            recentExecutions
         });
+
     } catch (e: any) {
-        console.error("Stats error:", e);
-        return NextResponse.json({ message: "Internal Server Error" }, { status: 500 });
+        console.error("Stats API error:", e);
+        return NextResponse.json({ error: e.message }, { status: 500 });
     }
 }

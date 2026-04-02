@@ -1,63 +1,71 @@
 import { NextResponse } from "next/server";
-import { executeWorkflow } from "@/lib/workflow/engine";
 
-/**
- * POST /api/hooks/catch/[zapId]
- * Webhook endpoint to trigger a Zap execution
- */
+import { db } from "@/db";
+import { zaps, triggers } from "@/db/schema";
+import { eq } from "drizzle-orm";
+import { executeZap } from "@/lib/zapExecutor";
+
+// POST /api/hooks/catch/[zapId] - Execute internal webhook
 export async function POST(
-  req: Request,
-  { params }: { params: Promise<{ zapId: string }> }
+    req: Request,
+    { params }: { params: { zapId: string } }
 ) {
-  try {
-    const { zapId } = await params;
-    
-    // Parse request body as trigger data
-    let triggerData = {};
     try {
-      triggerData = await req.json();
-    } catch (e) {
-      // If no JSON body, we'll just use an empty object
-      console.warn("Webhook received with no JSON body");
-    }
+        const { zapId } = params;
+        const payload = await req.json().catch(() => ({}));
 
-    // Execute the workflow
-    console.log(`⚡ Webhook received for Zap ${zapId}. Triggering execution...`);
-    
-    const result = await executeWorkflow(zapId, triggerData);
+        // Try to find the zap directly (if id is zapId)
+        let zap = await db.query.zaps.findFirst({
+            where: eq(zaps.id, zapId),
+        });
 
-    if (result.success) {
-      return NextResponse.json({
-        message: "Zap executed successfully",
-        executionId: result.executionId,
-      });
-    } else {
-      return NextResponse.json({
-        message: "Zap execution failed",
-        executionId: result.executionId,
-      }, { status: 500 });
+        // Or if the id is actually a trigger ID
+        if (!zap) {
+            const trigger = await db.query.triggers.findFirst({
+                where: eq(triggers.id, zapId),
+            });
+
+            if (trigger) {
+                zap = await db.query.zaps.findFirst({
+                    where: eq(zaps.id, trigger.zapId),
+                });
+            }
+        }
+
+        if (!zap) {
+            return NextResponse.json({ error: "Zap not found" }, { status: 404 });
+        }
+
+        if (zap.status !== "active") {
+            return NextResponse.json({ error: "Zap is not active" }, { status: 400 });
+        }
+
+        // Execute Zap synchronously on Vercel Edge/Serverless
+        const result = await executeZap(zap.id, payload);
+
+        return NextResponse.json({
+            success: true,
+            message: "Webhook triggered successfully",
+            executionId: result?.runId
+        });
+    } catch (e: any) {
+        console.error("Webhook error:", e);
+        return NextResponse.json({ 
+            error: "Failed to trigger webhook",
+            message: e.message 
+        }, { status: 500 });
     }
-  } catch (error: any) {
-    console.error("Error in webhook catch:", error);
-    return NextResponse.json({ 
-      message: "Internal Server Error",
-      error: error.message 
-    }, { status: 500 });
-  }
 }
 
-/**
- * GET /api/hooks/catch/[zapId]
- * Just to confirm the endpoint is working
- */
+// GET - Return webhook info
 export async function GET(
-  req: Request,
-  { params }: { params: Promise<{ zapId: string }> }
+    req: Request,
+    { params }: { params: { zapId: string } }
 ) {
-    const { zapId } = await params;
-    return NextResponse.json({ 
-        message: "Webhook endpoint is active",
+    const { zapId } = params;
+    return NextResponse.json({
+        webhookUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/hooks/catch/${zapId}`,
         zapId,
-        url: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/hooks/catch/${zapId}`
+        status: "active"
     });
 }

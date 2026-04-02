@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ChangeListManager">
+    <list default="true" id="db4a02dd-b963-438f-8ada-43fd4c64b058" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/.qwen/settings.json" beforeDir="false" afterPath="$PROJECT_DIR$/.qwen/settings.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/package.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/db/index.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/db/index.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/lib/api.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/lib/api.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/lib/api/client.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/lib/api/client.ts" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="ProjectColorInfo"><![CDATA[{
+  "associatedIndex": 6
+}]]></component>
+  <component name="ProjectId" id="3Bd26SpbLULvYjfCey6QIqIRU3p" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "RunOnceActivity.typescript.service.memoryLimit.init": "true",
+    "codeWithMe.voiceChat.enabledByDefault": "false",
+    "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1": "true",
+    "dart.analysis.tool.window.visible": "false",
+    "git-widget-placeholder": "main",
+    "ignore.virus.scanning.warn.message": "true",
+    "javascript.preferred.runtime.type.id": "node",
+    "junie.onboarding.icon.badge.shown": "true",
+    "node.js.detected.package.eslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "nodejs_package_manager_path": "npm",
+    "settings.editor.selected.configurable": "editor.preferences.completion.inline",
+    "to.speed.mode.migration.done": "true",
+    "ts.external.directory.path": "D:\\coding\\New folder (2)\\Zappy\\node_modules\\typescript\\lib",
+    "vue.rearranger.settings.migration": "true"
+  }
+}]]></component>
+  <component name="SharedIndexes">
+    <attachedChunks>
+      <set>
+        <option value="bundled-js-predefined-d6986cc7102b-3bd3a6803838-JavaScript-WS-261.22158.274" />
+      </set>
+    </attachedChunks>
+  </component>
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="db4a02dd-b963-438f-8ada-43fd4c64b058" name="Changes" comment="" />
+      <created>1774804452802</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1774804452802</updated>
+      <workItem from="1774804454470" duration="246000" />
+    </task>
+    <servers />
+  </component>
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="3" />
+    <option name="exactExcludedFiles">
+      <list>
+        <option value="$PROJECT_DIR$/backend/src/index.js" />
+        <option value="$PROJECT_DIR$/backend/src/index.js.map" />
+        <option value="$PROJECT_DIR$/backend/src/index.d.ts" />
+        <option value="$PROJECT_DIR$/backend/src/index.d.ts.map" />
+        <option value="$PROJECT_DIR$/backend/src/config/db.js" />
+        <option value="$PROJECT_DIR$/backend/src/config/db.js.map" />
+        <option value="$PROJECT_DIR$/backend/src/config/db.d.ts.map" />
+        <option value="$PROJECT_DIR$/backend/src/models/index.js" />
+        <option value="$PROJECT_DIR$/backend/src/models/index.js.map" />
+        <option value="$PROJECT_DIR$/backend/src/models/index.d.ts" />
+        <option value="$PROJECT_DIR$/backend/src/models/index.d.ts.map" />
+        <option value="$PROJECT_DIR$/backend/src/routes/auth.js" />
+        <option value="$PROJECT_DIR$/backend/src/routes/auth.js.map" />
+        <option value="$PROJECT_DIR$/backend/src/routes/auth.d.ts" />
+        <option value="$PROJECT_DIR$/backend/src/routes/auth.d.ts.map" />
+        <option value="$PROJECT_DIR$/backend/src/routes/zap.js" />
+        <option value="$PROJECT_DIR$/backend/src/routes/zap.js.map" />
+        <option value="$PROJECT_DIR$/backend/src/routes/zap.d.ts" />
+        <option value="$PROJECT_DIR$/backend/src/routes/zap.d.ts.map" />
+        <option value="$PROJECT_DIR$/backend/src/routes/webhooks.js" />
+        <option value="$PROJECT_DIR$/backend/src/routes/webhooks.js.map" />
+        <option value="$PROJECT_DIR$/backend/src/routes/webhooks.d.ts" />
+        <option value="$PROJECT_DIR$/backend/src/routes/webhooks.d.ts.map" />
+        <option value="$PROJECT_DIR$/backend/src/routes/workflows.js" />
+        <option value="$PROJECT_DIR$/backend/src/routes/workflows.js.map" />
+        <option value="$PROJECT_DIR$/backend/src/routes/workflows.d.ts" />
+        <option value="$PROJECT_DIR$/backend/src/routes/workflows.d.ts.map" />
+        <option value="$PROJECT_DIR$/backend/src/routes/executions.js" />
+        <option value="$PROJECT_DIR$/backend/src/routes/executions.js.map" />
+        <option value="$PROJECT_DIR$/backend/src/routes/executions.d.ts" />
+        <option value="$PROJECT_DIR$/backend/src/routes/executions.d.ts.map" />
+      </list>
+    </option>
+  </component>
+</project>

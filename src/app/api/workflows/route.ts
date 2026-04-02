@@ -1,133 +1,78 @@
-// Workflows API - CRUD operations for workflows
+import { NextResponse, NextRequest } from "next/server";
+import { db } from "@/db";
+import { zaps, triggers, actions } from "@/db/schema";
+import { eq, and } from "drizzle-orm";
+import { v4 as uuidv4 } from "uuid";
+import { auth } from "@clerk/nextjs/server";
 
-import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/mongodb';
-import { Workflow, User } from '@/lib/models';
-import jwt from 'jsonwebtoken';
-import { v4 as uuidv4 } from 'uuid';
+import { syncUser } from "@/lib/authSync";
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+// GET /api/workflows
+export async function GET(req: NextRequest) {
+    try {
+        const userId = await syncUser();
+        if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-// Helper to get user from token
-async function getCurrentUser(request: NextRequest) {
-  const authHeader = request.headers.get('authorization');
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return null;
-  }
-
-  const token = authHeader.substring(7);
-  try {
-    const decoded: any = jwt.verify(token, JWT_SECRET);
-    return decoded;
-  } catch {
-    return null;
-  }
+        const userZaps = await db.query.zaps.findMany({
+            where: eq(zaps.userId, userId),
+            with: {
+                trigger: true,
+                actions: true,
+            },
+        });
+        
+        return NextResponse.json({ workflows: userZaps, zaps: userZaps });
+    } catch (e: any) {
+        return NextResponse.json({ error: e.message }, { status: 500 });
+    }
 }
 
-/**
- * GET /api/workflows
- * Get all workflows for the current user
- */
-export async function GET(request: NextRequest) {
-  try {
-    await connectDB();
+// POST /api/workflows
+export async function POST(req: NextRequest) {
+    try {
+        const userId = await syncUser();
+        if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const user = await getCurrentUser(request);
-    if (!user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
+        const { name, description, trigger, actions: initialActions } = await req.json();
+
+        const zapId = uuidv4();
+        const newZap = {
+            id: zapId,
+            name: name || "Untitled Zap",
+            description: description || "",
+            status: "paused",
+            userId: userId,
+        };
+
+        await db.transaction(async (tx) => {
+            await tx.insert(zaps).values(newZap);
+
+            if (trigger) {
+                const triggerId = uuidv4();
+                await tx.insert(triggers).values({
+                    id: triggerId,
+                    zapId: zapId,
+                    type: trigger.type || "webhook",
+                    metadata: trigger.metadata || trigger.config || {},
+                });
+                await tx.update(zaps).set({ triggerId }).where(eq(zaps.id, zapId));
+            }
+
+            if (initialActions && Array.isArray(initialActions)) {
+                for (let i = 0; i < initialActions.length; i++) {
+                    await tx.insert(actions).values({
+                        id: uuidv4(),
+                        zapId: zapId,
+                        type: initialActions[i].type || initialActions[i].actionId || "unknown",
+                        metadata: initialActions[i].metadata || initialActions[i].config || {},
+                        sortingOrder: i,
+                    });
+                }
+            }
+        });
+        
+        return NextResponse.json({ workflow: { ...newZap, trigger, actions: initialActions } }, { status: 201 });
+    } catch (e: any) {
+        return NextResponse.json({ error: e.message }, { status: 500 });
     }
-
-    const workflows = await Workflow.find({ userId: user.userId }).sort({
-      updatedAt: -1,
-    });
-
-    return NextResponse.json({ workflows });
-  } catch (error: any) {
-    console.error('Get workflows error:', error);
-    return NextResponse.json(
-      { error: error.message || 'Internal server error' },
-      { status: 500 }
-    );
-  }
-}
-
-/**
- * POST /api/workflows
- * Create a new workflow
- */
-export async function POST(request: NextRequest) {
-  try {
-    await connectDB();
-
-    const user = await getCurrentUser(request);
-    if (!user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
-
-    const { name, description, trigger, actions, templateId } = await request.json();
-
-    // Validate input
-    if (!name || !trigger || !actions) {
-      return NextResponse.json(
-        { error: 'Name, trigger, and actions are required' },
-        { status: 400 }
-      );
-    }
-
-    // Generate webhook URL if trigger is webhook
-    const webhookUrl =
-      trigger.type === 'webhook'
-        ? `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/trigger/[id]`
-        : undefined;
-
-    // Create workflow
-    const workflow = await Workflow.create({
-      userId: user.userId,
-      name,
-      description,
-      status: 'draft',
-      trigger: {
-        type: trigger.type,
-        config: trigger.config || {},
-        webhookUrl,
-      },
-      actions: actions.map((action: any, index: number) => ({
-        id: uuidv4(),
-        type: action.type,
-        config: action.config || {},
-        order: index,
-      })),
-      templateId,
-      isTemplate: false,
-      executionCount: 0,
-    });
-
-    // Update user's workflow count
-    await User.findByIdAndUpdate(user.userId, {
-      $inc: { workflowsCount: 1 },
-    });
-
-    return NextResponse.json(
-      {
-        message: 'Workflow created successfully',
-        workflow: {
-          ...workflow.toObject(),
-          id: workflow._id,
-        },
-      },
-      { status: 201 }
-    );
-  } catch (error: any) {
-    console.error('Create workflow error:', error);
-    return NextResponse.json(
-      { error: error.message || 'Internal server error' },
-      { status: 500 }
-    );
-  }
 }

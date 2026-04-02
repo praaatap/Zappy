@@ -9,17 +9,17 @@ import Link from "next/link";
 export default function LandingPage() {
 
   const navItems = [
-    { name: "Product",   href: "#features" },
+    { name: "Product", href: "#features" },
     { name: "Solutions", href: "#features" },
-    { name: "Customers", href: "#trusted"  },
-    { name: "Pricing",   href: "/pricing"  },
+    { name: "Customers", href: "#trusted" },
+    { name: "Pricing", href: "/pricing" },
   ];
 
   const stats = [
     { value: "10,000+", label: "Teams" },
-    { value: "200M+",   label: "Tasks / month" },
-    { value: "99.9%",   label: "Uptime SLA" },
-    { value: "5,000+",  label: "Integrations" },
+    { value: "200M+", label: "Tasks / month" },
+    { value: "99.9%", label: "Uptime SLA" },
+    { value: "5,000+", label: "Integrations" },
   ];
 
   const bentoCards = [
@@ -212,10 +212,10 @@ export default function LandingPage() {
               {/* Flow nodes */}
               <div className="relative z-10 flex items-center gap-5 md:gap-10">
                 {[
-                  { icon: Globe,    bg: "bg-blue-50",   color: "text-blue-600",   label: "Trigger"   },
-                  { icon: Cpu,      bg: "bg-orange-50", color: "text-orange-600", label: "Filter"    },
-                  { icon: Zap,      bg: "bg-green-50",  color: "text-green-600",  label: "Transform" },
-                  { icon: BarChart3,bg: "bg-purple-50", color: "text-purple-600", label: "Output"    },
+                  { icon: Globe, bg: "bg-blue-50", color: "text-blue-600", label: "Trigger" },
+                  { icon: Cpu, bg: "bg-orange-50", color: "text-orange-600", label: "Filter" },
+                  { icon: Zap, bg: "bg-green-50", color: "text-green-600", label: "Transform" },
+                  { icon: BarChart3, bg: "bg-purple-50", color: "text-purple-600", label: "Output" },
                 ].map((node, i) => (
                   <div key={i} className="flex items-center gap-5 md:gap-10">
                     <div className="flex flex-col items-center gap-2">
@@ -264,12 +264,12 @@ export default function LandingPage() {
           <div className="absolute right-0 inset-y-0 w-28 bg-gradient-to-l from-slate-50 to-transparent z-10 pointer-events-none" />
 
           <div className="animate-marquee whitespace-nowrap flex gap-14 items-center">
-            {["ACME INC","VERTEX","PLURAL","NEXTGEN","STRATOS","ORBITAL","SKYLINE","HELIX",
-              "ACME INC","VERTEX","PLURAL","NEXTGEN","STRATOS","ORBITAL","SKYLINE","HELIX"].map((name, i) => (
-              <span key={i} className="text-xl font-bold text-slate-300 tracking-wider select-none">
-                {name}
-              </span>
-            ))}
+            {["ACME INC", "VERTEX", "PLURAL", "NEXTGEN", "STRATOS", "ORBITAL", "SKYLINE", "HELIX",
+              "ACME INC", "VERTEX", "PLURAL", "NEXTGEN", "STRATOS", "ORBITAL", "SKYLINE", "HELIX"].map((name, i) => (
+                <span key={i} className="text-xl font-bold text-slate-300 tracking-wider select-none">
+                  {name}
+                </span>
+              ))}
           </div>
         </div>
       </section>
@@ -315,8 +315,8 @@ export default function LandingPage() {
                 </div>
                 <div className="flex gap-2 items-center">
                   {[
-                    { bg: "bg-blue-50",   border: "border-blue-100",   Icon: Globe,    ic: "text-blue-500",   w: "w-1/2"   },
-                    { bg: "bg-green-50",  border: "border-green-100",  Icon: Zap,      ic: "text-green-500",  w: "w-2/3"   },
+                    { bg: "bg-blue-50", border: "border-blue-100", Icon: Globe, ic: "text-blue-500", w: "w-1/2" },
+                    { bg: "bg-green-50", border: "border-green-100", Icon: Zap, ic: "text-green-500", w: "w-2/3" },
                     { bg: "bg-purple-50", border: "border-purple-100", Icon: BarChart3, ic: "text-purple-500", w: "w-full" },
                   ].map(({ bg, border, Icon, ic, w }, i) => (
                     <div key={i} className="flex-1 flex items-center gap-1.5">
@@ -479,9 +479,9 @@ export default function LandingPage() {
 
           {/* Link columns */}
           {[
-            { head: "Product",   links: ["Features", "Integrations", "Pricing", "Changelog"] },
-            { head: "Company",   links: ["About",    "Blog",         "Careers", "Press"]      },
-            { head: "Resources", links: ["Docs",     "API Ref",      "Status",  "Community"]  },
+            { head: "Product", links: ["Features", "Integrations", "Pricing", "Changelog"] },
+            { head: "Company", links: ["About", "Blog", "Careers", "Press"] },
+            { head: "Resources", links: ["Docs", "API Ref", "Status", "Community"] },
           ].map(({ head, links }) => (
             <div key={head}>
               <h4 className="text-white font-bold mb-5 text-sm">{head}</h4>
