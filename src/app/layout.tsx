@@ -3,6 +3,8 @@ import type { Metadata } from "next";
 import { Plus_Jakarta_Sans, Sora } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "sonner";
+import { ClerkProvider } from "@clerk/nextjs";
+import { isClerkConfigured } from "@/lib/clerk-config";
 
 const jakarta = Plus_Jakarta_Sans({
   subsets: ["latin"],
@@ -21,19 +23,15 @@ export const metadata: Metadata = {
   description: "The workflow automation platform for everyone.",
 };
 
-import { ClerkProvider } from "@clerk/nextjs";
-
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <ClerkProvider>
-      <html lang="en" className={`${jakarta.variable} ${sora.variable}`}>
-        <body className={jakarta.className}>
-          {children}
-          <Toaster richColors position="bottom-right" />
-        </body>
-      </html>
-    </ClerkProvider>
+    <html lang="en" className={`${jakarta.variable} ${sora.variable}`}>
+      <body className={jakarta.className}>
+        {isClerkConfigured ? <ClerkProvider>{children}</ClerkProvider> : children}
+        <Toaster richColors position="bottom-right" />
+      </body>
+    </html>
   );
 }

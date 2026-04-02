@@ -9,6 +9,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect, useRef } from "react";
 import { useClerk, useUser } from "@clerk/nextjs";
+import { isClerkConfigured } from "@/lib/clerk-config";
 
 // ============================================================================
 // CONFIGURATION & HELPERS (Outside the component so they don't re-render)
@@ -46,7 +47,7 @@ const allItems = navSections.flatMap((s) => s.items);
 // MAIN COMPONENT
 // ============================================================================
 
-export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+function DashboardLayoutWithClerk({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { signOut } = useClerk();
@@ -394,5 +395,37 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       </div>
     </div>
+  );
+}
+
+function DashboardLayoutWithoutClerk({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="min-h-screen bg-[#F4F5F7] flex items-center justify-center p-6">
+      <div className="w-full max-w-2xl rounded-[2rem] border border-slate-200 bg-white p-8 shadow-xl shadow-slate-200/60">
+        <div className="inline-flex items-center rounded-full border border-orange-200 bg-orange-50 px-4 py-2 text-xs font-bold uppercase tracking-[0.28em] text-orange-600">
+          Auth disabled in dev
+        </div>
+        <h1 className="mt-5 text-3xl font-extrabold tracking-tight text-slate-900">
+          Zappy is running without Clerk keys.
+        </h1>
+        <p className="mt-3 max-w-xl text-sm leading-6 text-slate-600">
+          Add real Clerk publishable and secret keys to your environment to enable sign-in, sign-up, and protected dashboard routes.
+        </p>
+        <div className="mt-6 rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+          The app shell is still available, but authentication-backed features are disabled until Clerk is configured.
+        </div>
+        <div className="mt-6">
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+  return isClerkConfigured ? (
+    <DashboardLayoutWithClerk>{children}</DashboardLayoutWithClerk>
+  ) : (
+    <DashboardLayoutWithoutClerk>{children}</DashboardLayoutWithoutClerk>
   );
 }
