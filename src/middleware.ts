@@ -1,4 +1,5 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
+import { NextResponse } from "next/server";
 import { isClerkConfigured } from "@/lib/clerk-config";
 
 const isPublicRoute = createRouteMatcher([
@@ -8,15 +9,15 @@ const isPublicRoute = createRouteMatcher([
   "/pricing",
 ]);
 
-export default clerkMiddleware(async (auth, request) => {
-  if (!isClerkConfigured) {
-    return;
-  }
+const noOpMiddleware = () => NextResponse.next();
 
-  if (!isPublicRoute(request)) {
-    await auth.protect();
-  }
-});
+export default isClerkConfigured
+  ? clerkMiddleware(async (auth, request) => {
+      if (!isPublicRoute(request)) {
+        await auth.protect();
+      }
+    })
+  : noOpMiddleware;
 
 export const config = {
   matcher: [

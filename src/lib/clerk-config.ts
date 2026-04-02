@@ -6,6 +6,8 @@ const invalidKeys = new Set([
   "sk_test_...",
 ]);
 
+const clerkPublishableKeyPattern = /^pk_(test|live)_[A-Za-z0-9]+$/;
+
 export function hasClerkPublishableKey() {
   const publishableKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
 
@@ -17,7 +19,11 @@ export function hasClerkPublishableKey() {
     return false;
   }
 
-  return !publishableKey.includes("your-clerk-key");
+  if (publishableKey.includes("your-clerk-key")) {
+    return false;
+  }
+
+  return clerkPublishableKeyPattern.test(publishableKey);
 }
 
 export const isClerkConfigured = hasClerkPublishableKey();
