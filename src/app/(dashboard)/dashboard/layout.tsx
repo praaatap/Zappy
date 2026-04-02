@@ -8,24 +8,11 @@ import {
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect, useRef } from "react";
+import { useClerk, useUser } from "@clerk/nextjs";
 
 // ============================================================================
 // CONFIGURATION & HELPERS (Outside the component so they don't re-render)
 // ============================================================================
-
-interface UserInfo {
-  name: string;
-  email: string;
-}
-
-function decodeToken(token: string): UserInfo | null {
-  try {
-    const payload = JSON.parse(atob(token.split(".")[1]));
-    return { name: payload.name || "User", email: payload.email || "" };
-  } catch {
-    return null;
-  }
-}
 
 const navSections = [
   {
@@ -62,11 +49,12 @@ const allItems = navSections.flatMap((s) => s.items);
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+  const { signOut } = useClerk();
+  const { user } = useUser();
 
   // --- STATE ---
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [desktopSidebarCollapsed, setDesktopSidebarCollapsed] = useState(false);
-  const [user, setUser] = useState<UserInfo | null>(null);
   
   // --- SEARCH STATE ---
   const [searchOpen, setSearchOpen] = useState(false);
@@ -75,11 +63,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   // --- EFFECTS ---
   
-  // 1. Load User on Mount
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (token) setUser(decodeToken(token));
-
     const savedSidebar = localStorage.getItem("zappy_dashboard_sidebar_collapsed");
     if (savedSidebar === "1") {
       setDesktopSidebarCollapsed(true);
@@ -114,9 +98,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   // --- HANDLERS & LOGIC ---
 
-  const handleLogout = () => {
-    localStorage.removeItem("token");
-    router.push("/login");
+  const handleLogout = async () => {
+    await signOut({ redirectUrl: "/login" });
   };
 
   const closeSearch = () => {
@@ -318,12 +301,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <div className={`border-t border-slate-100 bg-slate-50/50 ${desktopSidebarCollapsed ? "p-2" : "p-4"}`}>
           <div className={`flex items-center rounded-2xl hover:bg-white hover:shadow-sm hover:ring-1 hover:ring-slate-200 cursor-pointer transition-all duration-200 group ${desktopSidebarCollapsed ? "justify-center p-2" : "gap-3 p-2"}`}>
             <div className="w-9 h-9 rounded-xl bg-linear-to-br from-slate-800 to-slate-900 flex items-center justify-center text-white font-bold text-sm shrink-0 shadow-md">
-              {user?.name?.charAt(0).toUpperCase() || "U"}
+              {user?.firstName?.charAt(0)?.toUpperCase() || user?.emailAddresses[0]?.emailAddress?.charAt(0)?.toUpperCase() || "U"}
             </div>
             {!desktopSidebarCollapsed && (
               <div className="flex-1 overflow-hidden min-w-0">
-                <p className="text-[13px] font-bold text-slate-900 truncate" style={{ fontFamily: 'var(--font-jakarta)' }}>{user?.name || "John Doe"}</p>
-                <p className="text-[11px] font-medium text-slate-500 truncate">{user?.email || "john@example.com"}</p>
+                <p className="text-[13px] font-bold text-slate-900 truncate" style={{ fontFamily: 'var(--font-jakarta)' }}>{user?.fullName || user?.username || "Zappy User"}</p>
+                <p className="text-[11px] font-medium text-slate-500 truncate">{user?.emailAddresses[0]?.emailAddress || ""}</p>
               </div>
             )}
             <button

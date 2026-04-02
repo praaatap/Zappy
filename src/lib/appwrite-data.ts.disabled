@@ -1,0 +1,388 @@
+import { ID, Query } from "node-appwrite";
+import { getAppwriteConfig, getDatabases } from "@/lib/appwrite";
+
+type JsonRecord = Record<string, any>;
+
+export interface ZapRecord {
+  id: string;
+  name: string;
+  description: string;
+  status: string;
+  userId: string;
+  triggerId?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  trigger?: TriggerRecord | null;
+  actions?: ActionRecord[];
+}
+
+export interface TriggerRecord {
+  id: string;
+  zapId: string;
+  type: string;
+  metadata: JsonRecord;
+}
+
+export interface ActionRecord {
+  id: string;
+  zapId: string;
+  type: string;
+  metadata: JsonRecord;
+  sortingOrder: number;
+}
+
+export interface ZapRunRecord {
+  id: string;
+  zapId: string;
+  status: string;
+  metadata: JsonRecord;
+  startedAt?: string;
+  completedAt?: string;
+}
+
+function mapZap(document: any): ZapRecord {
+  return {
+    id: document.$id,
+    name: document.name,
+    description: document.description ?? "",
+    status: document.status ?? "paused",
+    userId: document.userId,
+    triggerId: document.triggerId || undefined,
+    createdAt: document.createdAt,
+    updatedAt: document.updatedAt,
+  };
+}
+
+function mapTrigger(document: any): TriggerRecord {
+  return {
+    id: document.$id,
+    zapId: document.zapId,
+    type: document.type,
+    metadata: document.metadata ?? {},
+  };
+}
+
+function mapAction(document: any): ActionRecord {
+  return {
+    id: document.$id,
+    zapId: document.zapId,
+    type: document.type,
+    metadata: document.metadata ?? {},
+    sortingOrder: document.sortingOrder ?? 0,
+  };
+}
+
+function mapRun(document: any): ZapRunRecord {
+  return {
+    id: document.$id,
+    zapId: document.zapId,
+    status: document.status ?? "running",
+    metadata: document.metadata ?? {},
+    startedAt: document.startedAt,
+    completedAt: document.completedAt,
+  };
+}
+
+export async function listZapsForUser(userId: string) {
+  const config = getAppwriteConfig();
+  const databases = getDatabases();
+  const response = await databases.listDocuments(
+    config.databaseId,
+    config.collections.zaps,
+    [Query.equal("userId", userId), Query.orderDesc("createdAt")]
+  );
+
+  return Promise.all(
+    response.documents.map(async (document) => {
+      const zap = mapZap(document);
+      const [trigger, actions] = await Promise.all([
+        zap.triggerId
+          ? databases.getDocument(config.databaseId, config.collections.triggers, zap.triggerId).then(mapTrigger).catch(() => null)
+          : Promise.resolve(null),
+        databases.listDocuments(
+          config.databaseId,
+          config.collections.actions,
+          [Query.equal("zapId", zap.id), Query.orderAsc("sortingOrder")]
+        ).then((result) => result.documents.map(mapAction)),
+      ]);
+
+      return { ...zap, trigger, actions };
+    })
+  );
+}
+
+export async function getZapById(zapId: string, userId?: string) {
+  const config = getAppwriteConfig();
+  const databases = getDatabases();
+  const document = await databases.getDocument(config.databaseId, config.collections.zaps, zapId);
+
+  if (userId && document.userId !== userId) {
+    return null;
+  }
+
+  const zap = mapZap(document);
+  const [trigger, actions] = await Promise.all([
+    zap.triggerId
+      ? databases.getDocument(config.databaseId, config.collections.triggers, zap.triggerId).then(mapTrigger).catch(() => null)
+      : Promise.resolve(null),
+    databases.listDocuments(
+      config.databaseId,
+      config.collections.actions,
+      [Query.equal("zapId", zap.id), Query.orderAsc("sortingOrder")]
+    ).then((result) => result.documents.map(mapAction)),
+  ]);
+
+  return { ...zap, trigger, actions };
+}
+
+export async function getZapByTriggerOrId(identifier: string) {
+  const config = getAppwriteConfig();
+  const databases = getDatabases();
+
+  const zap = await databases.getDocument(config.databaseId, config.collections.zaps, identifier)
+    .then(mapZap)
+    .catch(() => null);
+
+  if (zap) {
+    return getZapById(zap.id);
+  }
+
+  const trigger = await databases.getDocument(config.databaseId, config.collections.triggers, identifier)
+    .then(mapTrigger)
+    .catch(() => null);
+
+  if (!trigger) {
+    return null;
+  }
+
+  return getZapById(trigger.zapId);
+}
+
+export async function createZapRecord(input: {
+  userId: string;
+  name: string;
+  description?: string;
+  status?: string;
+  trigger: { type: string; metadata?: JsonRecord };
+  actions?: Array<{ type?: string; actionId?: string; metadata?: JsonRecord; config?: JsonRecord }>;
+}) {
+  const config = getAppwriteConfig();
+  const databases = getDatabases();
+  const zapId = ID.unique();
+  const triggerId = ID.unique();
+  const createdActionIds: string[] = [];
+
+  try {
+    await databases.createDocument(config.databaseId, config.collections.zaps, zapId, {
+      name: input.name || "Untitled Zap",
+      description: input.description || "",
+      status: input.status || "active",
+      userId: input.userId,
+      triggerId,
+    });
+
+    await databases.createDocument(config.databaseId, config.collections.triggers, triggerId, {
+      zapId,
+      type: input.trigger.type,
+      metadata: input.trigger.metadata || {},
+    });
+
+    for (let index = 0; index < (input.actions || []).length; index++) {
+      const action = input.actions![index];
+      const actionId = ID.unique();
+      createdActionIds.push(actionId);
+
+      await databases.createDocument(config.databaseId, config.collections.actions, actionId, {
+        zapId,
+        type: action.actionId || action.type || "unknown",
+        metadata: action.metadata || action.config || {},
+        sortingOrder: index,
+      });
+    }
+
+    return getZapById(zapId);
+  } catch (error) {
+    await Promise.all(createdActionIds.map((actionId) => databases.deleteDocument(
+      config.databaseId,
+      config.collections.actions,
+      actionId
+    ).catch(() => undefined)));
+
+    await databases.deleteDocument(config.databaseId, config.collections.triggers, triggerId).catch(() => undefined);
+    await databases.deleteDocument(config.databaseId, config.collections.zaps, zapId).catch(() => undefined);
+    throw error;
+  }
+}
+
+export async function updateZapRecord(zapId: string, userId: string, patch: JsonRecord) {
+  const config = getAppwriteConfig();
+  const databases = getDatabases();
+  const existing = await getZapById(zapId, userId);
+
+  if (!existing) {
+    return null;
+  }
+
+  const allowedPatch: JsonRecord = {};
+  for (const key of ["name", "description", "status", "triggerId"]) {
+    if (patch[key] !== undefined) {
+      allowedPatch[key] = patch[key];
+    }
+  }
+
+  await databases.updateDocument(config.databaseId, config.collections.zaps, zapId, allowedPatch);
+  return getZapById(zapId, userId);
+}
+
+export async function deleteZapRecord(zapId: string, userId: string) {
+  const config = getAppwriteConfig();
+  const databases = getDatabases();
+  const existing = await getZapById(zapId, userId);
+
+  if (!existing) {
+    return false;
+  }
+
+  const [actions, runs] = await Promise.all([
+    databases.listDocuments(config.databaseId, config.collections.actions, [Query.equal("zapId", zapId)]),
+    databases.listDocuments(config.databaseId, config.collections.zapRuns, [Query.equal("zapId", zapId)]),
+  ]);
+
+  await Promise.all(actions.documents.map((document) => databases.deleteDocument(config.databaseId, config.collections.actions, document.$id)));
+  await Promise.all(runs.documents.map((document) => databases.deleteDocument(config.databaseId, config.collections.zapRuns, document.$id)));
+
+  if (existing.triggerId) {
+    await databases.deleteDocument(config.databaseId, config.collections.triggers, existing.triggerId).catch(() => undefined);
+  }
+
+  await databases.deleteDocument(config.databaseId, config.collections.zaps, zapId);
+  return true;
+}
+
+export async function createZapRun(input: { zapId: string; metadata: JsonRecord; status?: string }) {
+  const config = getAppwriteConfig();
+  const databases = getDatabases();
+
+  const document = await databases.createDocument(config.databaseId, config.collections.zapRuns, ID.unique(), {
+    zapId: input.zapId,
+    metadata: input.metadata || {},
+    status: input.status || "running",
+    startedAt: new Date().toISOString(),
+  });
+
+  return mapRun(document);
+}
+
+export async function finishZapRun(input: { runId: string; status: string; metadata: JsonRecord }) {
+  const config = getAppwriteConfig();
+  const databases = getDatabases();
+
+  const document = await databases.updateDocument(config.databaseId, config.collections.zapRuns, input.runId, {
+    status: input.status,
+    metadata: input.metadata || {},
+    completedAt: new Date().toISOString(),
+  });
+
+  return mapRun(document);
+}
+
+export async function listStatsForUser(userId: string) {
+  const config = getAppwriteConfig();
+  const databases = getDatabases();
+  const userZaps = await databases.listDocuments(config.databaseId, config.collections.zaps, [Query.equal("userId", userId)]);
+
+  if (userZaps.total === 0) {
+    return {
+      totalWorkflows: 0,
+      activeWorkflows: 0,
+      totalExecutions: 0,
+      successRate: 100,
+      activity: [],
+      recentExecutions: [],
+    };
+  }
+
+  const zapIds = userZaps.documents.map((document) => document.$id);
+  const runs = await databases.listDocuments(config.databaseId, config.collections.zapRuns, [
+    Query.equal("zapId", zapIds),
+    Query.orderDesc("startedAt"),
+    Query.limit(100),
+  ]);
+
+  const zapNameMap = new Map(userZaps.documents.map((document) => [document.$id, document.name]));
+  const recentExecutions = runs.documents.slice(0, 5).map((document) => {
+    const run = mapRun(document);
+    return {
+      ...run,
+      zapName: zapNameMap.get(run.zapId) || "Workflow",
+    };
+  });
+
+  const successful = runs.documents.filter((document) => document.status === "success").length;
+  const successRate = runs.total > 0 ? Math.round((successful / runs.total) * 100) : 100;
+
+  return {
+    totalWorkflows: userZaps.total,
+    activeWorkflows: userZaps.documents.filter((document) => document.status === "active").length,
+    totalExecutions: runs.total,
+    successRate,
+    activity: recentExecutions.map((item) => ({
+      title: item.zapName,
+      zap: item.zapName,
+      status: item.status,
+      time: item.startedAt,
+    })),
+    recentExecutions,
+  };
+}
+
+export async function listExecutionsForUser(input: {
+  userId: string;
+  workflowId?: string;
+  status?: string;
+  limit: number;
+  offset: number;
+}) {
+  const config = getAppwriteConfig();
+  const databases = getDatabases();
+  const userZaps = await databases.listDocuments(config.databaseId, config.collections.zaps, [Query.equal("userId", input.userId)]);
+  const workflowIds = userZaps.documents.map((document) => document.$id);
+
+  if (workflowIds.length === 0) {
+    return { executions: [], total: 0 };
+  }
+
+  if (input.workflowId && !workflowIds.includes(input.workflowId)) {
+    throw new Error("Unauthorized");
+  }
+
+  const queries = [
+    Query.equal("zapId", input.workflowId ? [input.workflowId] : workflowIds),
+    Query.orderDesc("startedAt"),
+    Query.limit(input.limit),
+    Query.offset(input.offset),
+  ];
+
+  if (input.status) {
+    queries.push(Query.equal("status", input.status));
+  }
+
+  const executions = await databases.listDocuments(config.databaseId, config.collections.zapRuns, queries);
+  const zapNameMap = new Map(userZaps.documents.map((document) => [document.$id, document.name]));
+
+  return {
+    executions: executions.documents.map((document) => {
+      const run = mapRun(document);
+      return {
+        _id: run.id,
+        workflowId: run.zapId,
+        workflowName: zapNameMap.get(run.zapId),
+        status: run.status,
+        startedAt: run.startedAt,
+        completedAt: run.completedAt,
+        metadata: run.metadata,
+      };
+    }),
+    total: executions.total,
+  };
+}

@@ -1,9 +1,13 @@
-// Workflow Engine - Execute workflows with trigger-action logic using Drizzle ORM
+// Workflow Engine - Execute workflows with trigger-action logic using Appwrite
 
-import { db } from "@/lib/db";
-import { zaps, zapRuns, actions } from "@/lib/db/schema";
-import { eq, desc, sql } from "drizzle-orm";
 import { v4 as uuidv4 } from "uuid";
+import {
+  getWorkflowById,
+  createExecutionLog,
+  updateExecutionLog,
+  updateExecutionStatus,
+  AppwriteWorkflow,
+} from "@/lib/appwrite";
 import { actionHandlers, ActionContext } from "./actionHandlers";
 
 export interface WorkflowExecutionResult {
@@ -13,7 +17,7 @@ export interface WorkflowExecutionResult {
   results: Array<{
     actionId: string;
     actionType: string;
-    status: 'success' | 'failed' | 'skipped';
+    status: "success" | "failed" | "skipped";
     output?: Record<string, any>;
     error?: string;
   }>;
@@ -24,43 +28,17 @@ export interface WorkflowExecutionResult {
  * Execute a workflow with the given trigger data
  */
 export async function executeWorkflow(
-  workflowId: string,
-  triggerData: Record<string, any>
+  workflow: AppwriteWorkflow,
+  triggerData: Record<string, any>,
+  executionId: string
 ): Promise<WorkflowExecutionResult> {
   const startTime = Date.now();
-  
+
   try {
-    // Find the workflow with its actions
-    const zap = await db.query.zaps.findFirst({
-      where: eq(zaps.id, workflowId),
-      with: {
-        actions: {
-          orderBy: [desc(actions.sortingOrder)]
-        }
-      }
-    });
+    // Update execution status to running
+    await updateExecutionStatus(executionId, "running");
 
-    if (!zap) {
-      throw new Error(`Workflow ${workflowId} not found`);
-    }
-
-    // Check if workflow is active
-    if (zap.status !== 'active') {
-      throw new Error(`Workflow is not active (status: ${zap.status})`);
-    }
-
-    const executionId = uuidv4();
-
-    // Create execution log (zapRuns)
-    await db.insert(zapRuns).values({
-      id: executionId,
-      zapId: zap.id,
-      status: 'running',
-      metadata: triggerData,
-      startedAt: new Date(),
-    });
-
-    console.log(`⚡ Executing workflow: ${zap.name} (${zap.id})`);
+    console.log(`⚡ Executing workflow: ${workflow.name} (${workflow.$id})`);
 
     // Context for variable replacement - starts with trigger data
     // subsequent steps can access this via {{trigger.field}} or {{step_N.field}}
@@ -69,33 +47,40 @@ export async function executeWorkflow(
     };
 
     // Execute each action in order
-    const results: WorkflowExecutionResult['results'] = [];
+    const results: WorkflowExecutionResult["results"] = [];
     let hasFailed = false;
 
-    // Sorting order is ascending
-    const sortedActions = [...zap.actions].sort((a, b) => (a.sortingOrder || 0) - (b.sortingOrder || 0));
+    // Sort actions by ID (assuming they come pre-sorted from Appwrite)
+    const sortedActions = (workflow.actions || []).sort(
+      (a, b) => (a.id?.localeCompare(b.id || "") || 0)
+    );
 
     for (let i = 0; i < sortedActions.length; i++) {
       const action = sortedActions[i];
       const stepKey = `step_${i + 1}`;
 
-      if (hasFailed && action.type !== 'condition') {
+      if (hasFailed && action.type !== "condition") {
         // Skip remaining actions if one failed (unless it's a condition)
         results.push({
           actionId: action.id,
           actionType: action.type,
-          status: 'skipped',
+          status: "skipped",
         });
         continue;
       }
 
-      const result = await executeAction(action, contextData, zap, executionId);
+      const result = await executeAction(
+        action,
+        contextData,
+        workflow,
+        executionId
+      );
       results.push(result);
 
-      if (result.status === 'success') {
+      if (result.status === "success") {
         // Add this step's output to the context for future steps
         contextData[stepKey] = result.output;
-      } else if (result.status === 'failed') {
+      } else if (result.status === "failed") {
         hasFailed = true;
       }
     }
@@ -104,33 +89,29 @@ export async function executeWorkflow(
     const endTime = Date.now();
     const duration = endTime - startTime;
 
-    await db.update(zapRuns).set({
-      status: hasFailed ? 'failed' : 'success',
-      completedAt: new Date(),
-    }).where(eq(zapRuns.id, executionId));
-
-    // Update zap's updatedAt
-    await db.update(zaps).set({
-      updatedAt: new Date(),
-    }).where(eq(zaps.id, zap.id));
+    await updateExecutionStatus(
+      executionId,
+      hasFailed ? "failed" : "completed"
+    );
 
     console.log(
-      `✅ Workflow execution completed: ${hasFailed ? 'FAILED' : 'SUCCESS'} in ${duration}ms`
+      `✅ Workflow execution completed: ${hasFailed ? "FAILED" : "SUCCESS"} in ${duration}ms`
     );
 
     return {
       success: !hasFailed,
-      executionId: executionId,
-      workflowId: zap.id,
+      executionId,
+      workflowId: workflow.$id,
       results,
       duration,
     };
   } catch (error: any) {
-    console.error('❌ Workflow execution error:', error);
+    console.error("❌ Workflow execution error:", error);
+    await updateExecutionStatus(executionId, "failed", error.message);
     return {
       success: false,
-      executionId: '',
-      workflowId,
+      executionId,
+      workflowId: workflow.$id,
       results: [],
       duration: Date.now() - startTime,
     };
@@ -143,9 +124,9 @@ export async function executeWorkflow(
 async function executeAction(
   action: any,
   contextData: Record<string, any>,
-  zap: any,
+  workflow: AppwriteWorkflow,
   executionId: string
-): Promise<WorkflowExecutionResult['results'][0]> {
+): Promise<WorkflowExecutionResult["results"][0]> {
   const handler = actionHandlers[action.type];
 
   if (!handler) {
@@ -153,35 +134,35 @@ async function executeAction(
     return {
       actionId: action.id,
       actionType: action.type,
-      status: 'failed',
+      status: "failed",
       error: `Unknown action type: ${action.type}`,
     };
   }
 
   try {
     const context: ActionContext = {
-      workflowId: zap.id,
+      workflowId: workflow.$id,
       executionId,
-      data: contextData, // Pass the cumulative data context
-      userId: zap.userId.toString(),
+      data: contextData,
+      userId: workflow.userId,
     };
 
     console.log(`🔧 Executing action: ${action.type} (${action.id})`);
 
-    const result = await handler(action.metadata || {}, context);
+    const result = await handler(action.config || {}, context);
 
     if (result.success) {
       return {
         actionId: action.id,
         actionType: action.type,
-        status: 'success',
+        status: "success",
         output: result.output,
       };
     } else {
       return {
         actionId: action.id,
         actionType: action.type,
-        status: 'failed',
+        status: "failed",
         error: result.error,
       };
     }
@@ -190,7 +171,7 @@ async function executeAction(
     return {
       actionId: action.id,
       actionType: action.type,
-      status: 'failed',
+      status: "failed",
       error: error.message,
     };
   }

@@ -1,6 +1,11 @@
-import { db } from "@/db";
-import { zaps, actions, zapRuns } from "@/db/schema";
-import { eq, asc } from "drizzle-orm";
+import { 
+  getWorkflowById,
+  createExecution, 
+  updateExecutionStatus,
+  appwriteDB,
+  DATABASE_ID,
+  COLLECTIONS
+} from "@/lib/appwrite";
 import axios from "axios";
 
 export interface ZapExecutionPayload {
@@ -10,62 +15,55 @@ export interface ZapExecutionPayload {
 /**
  * Core utility to execute a Zap's actions based on a trigger payload.
  */
-export async function executeZap(zapId: string, triggerPayload: any) {
+export async function executeZap(zapId: string, triggerPayload: any, userId?: string) {
   console.log(`⚡ Starting execution for Zap: ${zapId}`);
 
-  // 1. Fetch Zap and its actions
-  const zap = await db.query.zaps.findFirst({
-    where: eq(zaps.id, zapId),
-    with: {
-      actions: {
-        orderBy: [asc(actions.sortingOrder)],
-      },
-    },
-  });
+  // 1. Fetch Workflow and its actions
+  try {
+    const workflow = await appwriteDB.getDocument(
+      DATABASE_ID,
+      COLLECTIONS.WORKFLOWS,
+      zapId
+    );
 
-  if (!zap || zap.status !== "active") {
-    console.warn(`Zap ${zapId} not found or inactive.`);
-    return;
-  }
-
-  // 2. Create Execution Log Entry
-  const runId = Math.random().toString(36).substring(7);
-  await db.insert(zapRuns).values({
-    id: runId,
-    zapId: zap.id,
-    metadata: { triggerData: triggerPayload },
-    status: "running",
-    startedAt: new Date(),
-  });
-
-  const results: any[] = [];
-  let success = true;
-
-  // 3. Execute Actions sequentially
-  for (const action of zap.actions) {
-    try {
-      console.log(`   - Executing action: ${action.type} (${action.id})`);
-      const result = await runAction(action.type, action.metadata, triggerPayload);
-      results.push({ actionId: action.id, status: "success", result });
-    } catch (error: any) {
-      console.error(`   - Action failed: ${action.type}`, { error: error.message });
-      results.push({ actionId: action.id, status: "failed", error: error.message });
-      success = false;
-      break; // Stop execution on first failure
+    if (!workflow || workflow.status !== "active") {
+      console.warn(`Zap ${zapId} not found or inactive.`);
+      return;
     }
+
+    // 2. Create Execution Log Entry
+    const execution = await createExecution(zapId, workflow.userId, triggerPayload);
+    const runId = execution.$id;
+
+    const results: any[] = [];
+    let success = true;
+
+    // 3. Execute Actions sequentially
+    for (const action of workflow.actions || []) {
+      try {
+        console.log(`   - Executing action: ${action.type} (${action.id})`);
+        const result = await runAction(action.type, action.config || action.metadata, triggerPayload);
+        results.push({ actionId: action.id, status: "success", result });
+      } catch (error: any) {
+        console.error(`   - Action failed: ${action.type}`, { error: error.message });
+        results.push({ actionId: action.id, status: "failed", error: error.message });
+        success = false;
+        break; // Stop execution on first failure
+      }
+    }
+
+    // 4. Update Final Status
+    await updateExecutionStatus(
+      runId,
+      success ? "completed" : "failed"
+    );
+
+    console.log(`✅ Zap ${zapId} finished with status: ${success ? "SUCCESS" : "FAILED"}`);
+    return { runId, success };
+  } catch (error: any) {
+    console.error(`❌ Execution error: ${error.message}`);
+    throw error;
   }
-
-  // 4. Update Final Status
-  await db.update(zapRuns)
-    .set({
-      status: success ? "success" : "failed",
-      metadata: { triggerData: triggerPayload, actionResults: results },
-      completedAt: new Date(),
-    })
-    .where(eq(zapRuns.id, runId));
-
-  console.log(`✅ Zap ${zapId} finished with status: ${success ? "SUCCESS" : "FAILED"}`);
-  return { runId, success };
 }
 
 /**

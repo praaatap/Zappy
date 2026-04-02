@@ -1,24 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/db";
-import { zaps, triggers, actions } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
-import { syncUser } from "@/lib/authSync";
+import { auth } from "@clerk/nextjs/server";
+import { appwriteDB, DATABASE_ID, COLLECTIONS, updateWorkflow, deleteWorkflow } from "@/lib/appwrite";
 
 // GET /api/v1/zap/[id]
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     try {
-        const userId = await syncUser();
+        const { userId } = await auth();
         if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-        const zap = await db.query.zaps.findFirst({
-            where: and(eq(zaps.id, params.id), eq(zaps.userId, userId)),
-            with: {
-                trigger: true,
-                actions: true,
-            },
-        });
+        const { id } = await params;
+        
+        const zap = await appwriteDB.getDocument(
+            DATABASE_ID,
+            COLLECTIONS.WORKFLOWS,
+            id
+        ).catch(() => null);
 
-        if (!zap) return NextResponse.json({ error: "Zap not found" }, { status: 404 });
+        if (!zap || zap.userId !== userId) return NextResponse.json({ error: "Zap not found" }, { status: 404 });
         
         return NextResponse.json({ zap, workflow: zap });
     } catch (e: any) {
@@ -27,19 +25,23 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 }
 
 // PUT /api/v1/zap/[id]
-export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     try {
-        const userId = await syncUser();
+        const { userId } = await auth();
         if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+        const { id } = await params;
         const body = await req.json();
 
-        const [existingZap] = await db.select().from(zaps).where(and(eq(zaps.id, params.id), eq(zaps.userId, userId))).limit(1);
-        if (!existingZap) return NextResponse.json({ error: "Zap not found" }, { status: 404 });
+        const existingZap = await appwriteDB.getDocument(
+            DATABASE_ID,
+            COLLECTIONS.WORKFLOWS,
+            id
+        ).catch(() => null);
+        
+        if (!existingZap || existingZap.userId !== userId) return NextResponse.json({ error: "Zap not found" }, { status: 404 });
 
-        await db.update(zaps)
-            .set({ ...body, updatedAt: new Date() })
-            .where(eq(zaps.id, params.id));
+        await updateWorkflow(id, { ...body, updatedAt: new Date() });
             
         return NextResponse.json({ message: "Zap updated successfully" });
     } catch (e: any) {
@@ -48,19 +50,22 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 }
 
 // DELETE /api/v1/zap/[id]
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     try {
-        const userId = await syncUser();
+        const { userId } = await auth();
         if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-        const [existingZap] = await db.select().from(zaps).where(and(eq(zaps.id, params.id), eq(zaps.userId, userId))).limit(1);
-        if (!existingZap) return NextResponse.json({ error: "Zap not found" }, { status: 404 });
+        const { id } = await params;
+        
+        const existingZap = await appwriteDB.getDocument(
+            DATABASE_ID,
+            COLLECTIONS.WORKFLOWS,
+            id
+        ).catch(() => null);
+        
+        if (!existingZap || existingZap.userId !== userId) return NextResponse.json({ error: "Zap not found" }, { status: 404 });
 
-        await db.transaction(async (tx) => {
-            await tx.delete(actions).where(eq(actions.zapId, params.id));
-            await tx.delete(triggers).where(eq(triggers.zapId, params.id));
-            await tx.delete(zaps).where(eq(zaps.id, params.id));
-        });
+        await appwriteDB.deleteDocument(DATABASE_ID, COLLECTIONS.WORKFLOWS, id);
 
         return NextResponse.json({ message: "Zap deleted successfully" });
     } catch (e: any) {

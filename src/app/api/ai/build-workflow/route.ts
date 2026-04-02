@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/db';
-import { zaps, triggers, actions, users } from '@/db/schema';
+import { auth } from '@clerk/nextjs/server';
 import { generateWorkflowFromDescription } from '@/lib/aiWorkflowBuilder';
-import { syncUser } from '@/lib/authSync';
-import { v4 as uuidv4 } from 'uuid';
+import { createWorkflow } from '@/lib/appwrite';
 
 /**
  * POST /api/ai/build-workflow
@@ -11,12 +9,12 @@ import { v4 as uuidv4 } from 'uuid';
  */
 export async function POST(request: NextRequest) {
   try {
-    const userId = await syncUser();
+    const { userId } = await auth();
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { description, createWorkflow } = await request.json();
+    const { description, shouldCreate } = await request.json();
 
     if (!description) {
       return NextResponse.json({ error: 'Description is required' }, { status: 400 });
@@ -29,52 +27,17 @@ export async function POST(request: NextRequest) {
     });
 
     // Optionally create the workflow immediately
-    if (createWorkflow) {
-      const zapId = uuidv4();
-      const triggerId = uuidv4();
-
-      await db.transaction(async (tx) => {
-        // Create zap
-        await tx.insert(zaps).values({
-          id: zapId,
-          userId,
-          name: workflowConfig.name,
-          description: workflowConfig.description,
-          status: 'draft',
-          triggerId: triggerId
-        });
-
-        // Create trigger
-        await tx.insert(triggers).values({
-          id: triggerId,
-          zapId,
-          type: workflowConfig.trigger.type,
-          metadata: workflowConfig.trigger.config
-        });
-
-        // Create actions
-        if (workflowConfig.actions && workflowConfig.actions.length > 0) {
-          const actionRecords = workflowConfig.actions.map((action, index) => ({
-            id: uuidv4(),
-            zapId,
-            type: action.type,
-            metadata: action.config,
-            sortingOrder: index
-          }));
-          
-          await tx.insert(actions).values(actionRecords);
-        }
-      });
-
-      // Get generated zap with relations
-      const newZap = await db.query.zaps.findFirst({
-        where: (z, { eq }) => eq(z.id, zapId),
-        with: { trigger: true, actions: true }
-      });
+    if (shouldCreate) {
+      const workflow = await createWorkflow(
+        userId,
+        workflowConfig.name || 'AI Generated Workflow',
+        workflowConfig.trigger || { type: 'webhook', config: {} },
+        workflowConfig.actions || []
+      );
 
       return NextResponse.json({
         message: 'Workflow created successfully',
-        workflow: newZap,
+        workflow: workflow,
         aiSuggestions: workflowConfig.matchedTemplate
           ? `Based on your description, we used the "${workflowConfig.matchedTemplate}" template`
           : 'Custom workflow created based on your description',

@@ -98,12 +98,10 @@ export default function ComplexWorkflowBuilder() {
         }))
       };
 
-      const token = localStorage.getItem('token');
       const res = await fetch('/api/v1/zap', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {})
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify(payload)
       });

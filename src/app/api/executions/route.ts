@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/db';
-import { zapRuns, zaps } from '@/db/schema';
-import { eq, inArray, desc, sql, and } from 'drizzle-orm';
-import { syncUser } from '@/lib/authSync';
+import { auth } from '@clerk/nextjs/server';
+import { appwriteDB, DATABASE_ID, COLLECTIONS } from '@/lib/appwrite';
+import { Query } from 'appwrite';
 
 /**
  * GET /api/executions
@@ -10,7 +9,7 @@ import { syncUser } from '@/lib/authSync';
  */
 export async function GET(request: NextRequest) {
   try {
-    const userId = await syncUser();
+    const { userId } = await auth();
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -19,74 +18,61 @@ export async function GET(request: NextRequest) {
       request.nextUrl.searchParams
     );
 
-    // Get user's workflows to ensure they own the zaps
-    const userWorkflows = await db.query.zaps.findMany({
-      where: eq(zaps.userId, userId),
-      columns: { id: true }
-    });
+    // Build query filters
+    const queries: any[] = [Query.equal('userId', userId)];
     
-    if (userWorkflows.length === 0) {
-      return NextResponse.json({
-        executions: [],
-        pagination: { total: 0, page: parseInt(page), limit: parseInt(limit), pages: 0 },
-      });
+    if (workflowId) {
+      queries.push(Query.equal('workflowId', workflowId));
+    }
+    
+    if (status) {
+      queries.push(Query.equal('status', status));
     }
 
-    const workflowIds = userWorkflows.map(w => w.id);
-
-    // If workflowId is provided, check if user owns it
-    if (workflowId && !workflowIds.includes(workflowId)) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const targetZaps = workflowId ? [workflowId] : workflowIds;
-
-    // Pagination
     const limitNum = parseInt(limit);
     const pageNum = parseInt(page);
     const offset = (pageNum - 1) * limitNum;
 
-    const conditions = [];
-    conditions.push(inArray(zapRuns.zapId, targetZaps));
-    if (status) {
-        conditions.push(eq(zapRuns.status, status));
-    }
+    // Get executions from Appwrite
+    const executions = await appwriteDB.listDocuments(
+      DATABASE_ID,
+      COLLECTIONS.EXECUTIONS,
+      [...queries, Query.limit(limitNum), Query.offset(offset)]
+    );
+    
+    // Get execution logs for each execution
+    const executionData = await Promise.all(
+      executions.documents.map(async (exec) => {
+        const logs = await appwriteDB.listDocuments(
+          DATABASE_ID,
+          COLLECTIONS.EXECUTION_LOGS,
+          [Query.equal('executionId', exec.$id)]
+        ).catch(() => ({ documents: [] }));
+        
+        return {
+          ...exec,
+          logs: logs.documents
+        };
+      })
+    );
 
-    // Get executions
-    const executionsResult = await db.query.zapRuns.findMany({
-      where: and(...conditions),
-      orderBy: [desc(zapRuns.startedAt)],
-      limit: limitNum,
-      offset: offset,
-      with: {
-        zap: {
-          columns: { name: true }
-        }
-      }
-    });
-
-    const formattedExecutions = executionsResult.map(run => ({
-      _id: run.id,
-      workflowId: run.zapId,
-      workflowName: run.zap?.name,
-      status: run.status,
-      startedAt: run.startedAt,
-      completedAt: run.completedAt,
-      metadata: run.metadata
+    const formattedExecutions = executionData.map((exec: any) => ({
+      id: exec.$id,
+      workflowId: exec.workflowId,
+      status: exec.status,
+      startedAt: exec.startedAt,
+      completedAt: exec.completedAt,
+      errorMessage: exec.errorMessage,
+      logs: exec.logs
     }));
-
-    // Get total count
-    const [{ count }] = await db.select({ count: sql`count(*)`.mapWith(Number) })
-      .from(zapRuns)
-      .where(and(...conditions));
 
     return NextResponse.json({
       executions: formattedExecutions,
       pagination: {
-        total: count,
+        total: executions.total,
         page: pageNum,
         limit: limitNum,
-        pages: Math.ceil(count / limitNum),
+        pages: Math.ceil(executions.total / limitNum),
       },
     });
   } catch (error: any) {

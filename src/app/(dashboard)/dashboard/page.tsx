@@ -26,12 +26,9 @@ export default function DashboardHome() {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const token = localStorage.getItem("token");
-        const res = await axios.get("/api/v1/stats", {
-          headers: { Authorization: token }
-        });
+        const res = await axios.get("/api/v1/stats");
         setStats(res.data.stats);
-        setActivity(res.data.activity);
+        setActivity(res.data.activity || []);
       } catch (error) {
         console.error("Error fetching stats:", error);
         toast.error("Failed to load dashboard data");

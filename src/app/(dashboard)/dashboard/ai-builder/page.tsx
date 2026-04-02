@@ -110,13 +110,10 @@ export default function AIBuilderPage() {
     setIsLoading(true);
 
     try {
-      const token = localStorage.getItem('token');
-
       const response = await fetch('/api/ai/build-workflow', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({
           description: userMessage,
@@ -157,13 +154,10 @@ export default function AIBuilderPage() {
 
     setIsLoading(true);
     try {
-      const token = localStorage.getItem('token');
-
       const response = await fetch('/api/ai/build-workflow', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({
           description: generatedWorkflow.description,
